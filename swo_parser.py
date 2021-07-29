@@ -4,6 +4,7 @@
 #
 
 import socket
+import sys
 import time
 
 class Stream:
@@ -134,11 +135,22 @@ class StreamManager:
 #### Main program ####
 
 # Set up the socket to the OpenOCD Tcl server
+CPU_CLK = 80000000
 HOST = 'localhost'
 PORT = 6666
+if len(sys.argv) > 1:
+    CPU_CLK = int(sys.argv[1])
+    assert CPU_CLK > 0
+    print("CPU clock:", CPU_CLK/10**6, "MHz")
+    if len(sys.argv) > 2:
+        PORT = int(sys.argv[2])
+        assert PORT > 0
+        print("tcl port:", PORT)
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcl_socket:
     tcl_socket.connect((HOST, PORT))
-    tcl_socket.settimeout(0)
+    # tcl_socket.settimeout(0)
+    def send_tcl(tcl):
+        tcl_socket.sendall(tcl.encode('ascii') + b'\n\x1a')
     
     # Create a stream manager and add three streams
     streams = StreamManager()
@@ -147,9 +159,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcl_socket:
     streams.add_stream(Stream(2, 'ERROR: ', tcl_socket))
     
     # Enable the tcl_trace output
-    tcl_socket.sendall(b'tcl_trace on\n\x1a')
-
+    send_tcl('init')
+    send_tcl('tpiu config internal - uart off ' + str(CPU_CLK))
+    send_tcl('itm ports on')
+    send_tcl('tcl_trace on')
+    if len(sys.argv) <= 2:
+        send_tcl('reset run')
     
+    print("\n/* ---------------- DEBUG INFO  ---------------- */\n")
+
     tcl_buf = b''
     while True:
         # Wait for new data from the socket
@@ -176,4 +194,4 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcl_socket:
     
     # Turn off the trace data before closing the port
     # XXX: There currently isn't a way for the code to actually reach this line
-    tcl_socket.sendall(b'tcl_trace off\n\x1a')
+    send_tcl('tcl_trace off')

@@ -2,26 +2,42 @@
 This python script is used to parse ITM trace packets from the SWO pin on the
 STM32 using OpenOCD. It is written for python 3, but shouldn't be too hard to
 port to python 2 if you're one of those people. It communicates with OpenOCD
-through the Tcl server (at localhost:6666).
+through the Tcl server (default at localhost:6666).
+
+```
++-------+    +-----------+
+|       |SWO |           |
+|  MCU  +----+  ST-LINK  |
+|       |    |           |
++-------+    +-----+-----+
+                   |
+                   |USB
+                   |
+             +-----+-----+
+             |  OpenOCD  |
+             +-----+-----+
+                   |
+                   |TCP:6666(default)
+                   |
+             +-----+-----+
+             |  Python   |
+             |  Script   |
+             +-----------+
+```
+
+
 
 ## OpenOCD Settings
 To use this script, first you must add some flags when you start up OpenOCD
 (or add these to your startup cfg file for OpenOCD).
 
 ```
-openocd.exe
--f board/st_nucleo_f7.cfg
--c "tpiu config internal - uart off 96000000"
--c "itm ports on"
+openocd -d2 -f interface/stlink.cfg  -f target/stm32f4x.cfg -c init -c targets
 ```
 
-The first line is because I'm using a nucleo_f7 demo board, substitute your
-own cfg here. The line option tells OpenOCD to enable ITM tracing on the
-target, tells it to send the data out on the Tcl server, and tells OpenOCD the
-clock rate of the target. It's important that you replace the 96000000 number
-with the actual clock rate for your target. The last line activates all 32 of
-the ITM trace channels; it's optional if you just want to use channel 0 (which
-is the channel used by ITM_SendChar).
+The "target/stm32f4x.cfg" represents stm32f4x chip, substitute your own cfg here.
+
+The "interface/stlink.cfg" represents stlink debugger, substitute your own debugger here.
 
 ## STM32 Settings
 You shouldn't need to configure anything on the target. This fact took me
@@ -44,8 +60,13 @@ After starting up OpenOCD, open a terminal in the directory where you placed
 swo_parser.py and type
 
 ```
-python swo_parser.py
+python swo_parser.py 180000000 50002
 ```
+
+**note：**
+The first parameter represents the target clock frequency, the second parameter 
+represents the Tcl server port; If you don't use these parameters, default 
+CPU clock=80000000 Tcl server port=6666.
 
 By default, messages will be parsed from channels 0, 1, and 2. Messages from
 channels 1 and 2 will be prepended with "WARNING: " and "ERROR: " respectively.
